@@ -8,6 +8,26 @@
 
 struct stat st;
 
+void create_district(char *district_name){
+    mkdir(district_name, 0750);
+    chdir(district_name);
+    
+    FILE *fptr;
+    fptr = fopen("district.cfg", "w");
+    if (fptr) fclose(fptr);
+    
+    fptr = fopen("reports.dat", "wb");
+    if (fptr) fclose(fptr);
+    
+    chdir("..");
+    
+    char target[150];
+    char linkname[150];
+    snprintf(target, sizeof(target), "%s/reports.dat", district_name);
+    snprintf(linkname, sizeof(linkname), "active_reports-%s", district_name);
+    symlink(target, linkname);
+}
+
 int decimal_to_octal(int decimal) {
     int arrOctal[3];
     int noEl = 0;
@@ -42,6 +62,12 @@ typedef struct report {
 int find_no_records(char *directory) {
     char filename[150];
     snprintf(filename, sizeof(filename), "%s/reports.dat", directory);
+
+    if (lstat(filename, &st) != 0) {
+        printf("Warning: dangling symlink or missing file: %s\n", filename);
+        return 0;
+    }
+
     FILE *f = fopen(filename, "rb");
     int i = 0;
     report aux;
@@ -55,6 +81,12 @@ int find_no_records(char *directory) {
 bool view_report(char *directory, int ID) {
     char filename[150];
     snprintf(filename, sizeof(filename), "%s/reports.dat", directory);
+
+    if (lstat(filename, &st) != 0) {
+        printf("Warning: dangling symlink or missing file: %s\n", filename);
+        return false;
+    }
+
     FILE *f = fopen(filename, "rb");
     if (f == NULL) { return false; }
     report aux;
@@ -75,7 +107,7 @@ bool view_report(char *directory, int ID) {
     }
     fclose(f);
     return false;
-}  
+}
 
 bool add_report(char *directory, report *data) {
     char filename[150];
@@ -93,7 +125,12 @@ bool add_report(char *directory, report *data) {
 void list_report(char *directory) {
     char filename[150];
     snprintf(filename, sizeof(filename), "%s/reports.dat", directory);
-    // We compute the directory/reports.dat in order to open the file at the specific directory/district !!
+
+    if (lstat(filename, &st) != 0) {
+        printf("Warning: dangling symlink or missing file: %s\n", filename);
+        return;
+    }
+
     FILE *f = fopen(filename, "rb");
     if (f == NULL) { return; }
     report aux;
@@ -142,10 +179,10 @@ bool delete_record(int ID, char *directory) {
 
     report aux;
     for (int i = ID; i < total; i++) {
-        fseek(f, i * sizeof(report), SEEK_SET);      // go to aux position
-        fread(&aux, sizeof(report), 1, f);            // read aux
-        fseek(f, (i - 1) * sizeof(report), SEEK_SET); // go to prev position
-        fwrite(&aux, sizeof(report), 1, f);           // overwrite prev with aux
+        fseek(f, i * sizeof(report), SEEK_SET);
+        fread(&aux, sizeof(report), 1, f);
+        fseek(f, (i - 1) * sizeof(report), SEEK_SET);
+        fwrite(&aux, sizeof(report), 1, f);
     }
 
     ftruncate(fileno(f), (total - 1) * sizeof(report));
@@ -156,6 +193,11 @@ bool delete_record(int ID, char *directory) {
 bool update_threshold(int new_threshold, char *directory) {
     char filename[150];
     snprintf(filename, sizeof(filename), "%s/district.cfg", directory);
+
+    if (lstat(filename, &st) != 0) {
+        printf("Warning: dangling symlink or missing file: %s\n", filename);
+        return false;
+    }
 
     if (get_permission_code(filename) != 640) {
         printf("Error: district.cfg permissions have been changed, expected 640 got %d\n", get_permission_code(filename));
@@ -322,6 +364,14 @@ int main(int argc, char *argv[]) {
             }
         }
         fclose(f);
+
+    } else if (strcmp(command, "--create_district") == 0) {
+        if (strcmp(role, "manager") != 0) {
+            printf("Error: only managers can create districts\n");
+            return 1;
+        }
+        if (pos_count < 1) { printf("Missing district name\n"); return 1; }
+        create_district(positional_args[0]);
 
     } else {
         printf("Unknown command: %s\n", command);
