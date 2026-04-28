@@ -28,6 +28,8 @@ void create_district(char *district_name){
     symlink(target, linkname);
 }
 
+bool delete_district(char *district_name){}
+
 int decimal_to_octal(int decimal) {
     int arrOctal[3];
     int noEl = 0;
