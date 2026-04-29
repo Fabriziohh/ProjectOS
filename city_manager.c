@@ -5,8 +5,29 @@
 #include <time.h>
 #include <unistd.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 
 struct stat st;
+
+void delete_district(char *district_name){
+    char linkname[150];
+    snprintf(linkname, sizeof(linkname), "active_reports-%s", district_name);
+    unlink(linkname);
+
+    int pid=fork();
+    if(pid==0){
+        execlp("rm", "rm", "-rf", district_name, NULL); // This leaves the C code and create a process called rm (first arg)
+        // The rm process goes in terminal and runs rm -rf district_name
+        exit(0);
+    } // child
+    if(pid>0){ 
+        wait(NULL);// parent
+        printf("directory deleted\n");
+    }else{
+        printf("Error forking!\n");
+        exit(EXIT_FAILURE);
+    }
+}
 
 void create_district(char *district_name){
     mkdir(district_name, 0750);
@@ -15,9 +36,15 @@ void create_district(char *district_name){
     FILE *fptr;
     fptr = fopen("district.cfg", "w");
     if (fptr) fclose(fptr);
-    
+    chmod("district.cfg", 0664);
+
     fptr = fopen("reports.dat", "wb");
     if (fptr) fclose(fptr);
+    chmod("reports.dat", 0640);
+
+    fptr = fopen("district.log", "w");
+    if (fptr) fclose(fptr);
+    chmod("district.log", 0644);
     
     chdir("..");
     
@@ -27,8 +54,6 @@ void create_district(char *district_name){
     snprintf(linkname, sizeof(linkname), "active_reports-%s", district_name);
     symlink(target, linkname);
 }
-
-bool delete_district(char *district_name){}
 
 int decimal_to_octal(int decimal) {
     int arrOctal[3];
@@ -308,7 +333,16 @@ int main(int argc, char *argv[]) {
         if (r == NULL) return 1;
         add_report(district, r);
         free(r);
-
+        if (pid_file == NULL) {
+            printf("Monitor could not be informed.\n");
+        }else{
+           pid_t mpid;
+           fscanf(pid_file, "%d", &mpid);
+           fclose(pid_file);
+           chdir(district);
+           kill(mpid, SIGUSR1);
+           // reads the number from the monitor pid file and then uses kill to send the sigusr1 to the corresponding process (monitor)
+        }
     } else if (strcmp(command, "--list") == 0) {
         if (pos_count < 1) { printf("Missing district\n"); return 1; }
         list_report(positional_args[0]);
@@ -375,6 +409,13 @@ int main(int argc, char *argv[]) {
         if (pos_count < 1) { printf("Missing district name\n"); return 1; }
         create_district(positional_args[0]);
 
+    } else if (strcmp(command, "--delete_district") == 0) {
+        if (strcmp(role, "manager") != 0) {
+            printf("Error: only managers can delete districts\n");
+            return 1;
+        }
+        if (pos_count < 1) { printf("Missing district name\n"); return 1; }
+        delete_district(positional_args[0]);
     } else {
         printf("Unknown command: %s\n", command);
         return 1;

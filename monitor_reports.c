@@ -1,41 +1,34 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <stdlib.h>
-#include <sys/wait.h>
 #include <signal.h>
+#include <string.h>
 
 void user_handle_print(int sig){
-    printf("User signal sent!\n");
-}
-
-void exit_handle_print(int sig){
-    printf("Exit monitoring!\n");
-}
-
-void process_monitor_file(){
-    int pid=fork();
-    if(pid==0){exit(0);}
-    if(pid>0){
-        wait(NULL);
-        printf("%d",pid);
-        FILE *f = fopen(".monitor_pid","w");
-        fprintf(f,"%d",pid);
+    FILE *f = fopen("monitor.log", "a");
+    if(f){
+        fprintf(f, "Monitor notified: a new report has been added.\n");
         fclose(f);
-        struct sigaction sa;
-        sa.sa_handler = &user_handle_print;
-        struct sigaction ex;
-        ex.sa_handler = &exit_handle_print;
-        while(1){
-            sigaction(SIGUSR1,&sa,NULL);
-            sigaction(SIGINT,&ex,NULL);
-        }
-    }else{
-        printf("Error");
-        exit(EXIT_FAILURE);
     }
 }
 
+void exit_handle_print(int sig){
+    exit(0);
+}
+
 int main(){
-    process_monitor_file();
+    FILE *f = fopen(".monitor_pid", "w");
+    fprintf(f, "%d", getpid());
+    fclose(f);
+
+    struct sigaction sa, ex;
+    memset(&sa, 0, sizeof(sa));
+    memset(&ex, 0, sizeof(ex));
+    sa.sa_handler = user_handle_print;
+    ex.sa_handler = exit_handle_print;
+    sigaction(SIGUSR1, &sa, NULL);
+    sigaction(SIGINT,  &ex, NULL);
+
+    while(1){ pause(); }
     return 0;
 }
