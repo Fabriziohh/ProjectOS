@@ -17,6 +17,16 @@ void exit_handle_print(int sig){
 }
 
 int main(){
+    FILE *pid_file = fopen(".monitor_pid", "r");
+    if(pid_file){
+        int existing_pid;
+        fscanf(pid_file, "%d", &existing_pid);
+        fclose(pid_file);
+        printf("ERROR: Monitor already running with PID %d\n", existing_pid);
+        fflush(stdout);
+        exit(1);
+    }
+
     FILE *f = fopen(".monitor_pid", "w");
     fprintf(f, "%d", getpid());
     fclose(f);
